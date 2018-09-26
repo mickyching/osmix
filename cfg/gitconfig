@@ -1,0 +1,21 @@
+[core]
+        editor = vim
+        quotepath = false               # display CJK filename
+[user]
+        name = Micky Ching
+        email = mickyching@qq.com
+[alias]
+        st = status
+        co = checkout
+        br = branch
+        ci = commit
+        rc = commit --amend
+        ll = log --pretty=format:'%Creset* %ad%<|(24,trunc) %Cgreen%h%<|(50,trunc)%d %<|(100,trunc) %Creset%s %C(cyan) %an <%ae>'\
+           --color=auto --date=short --abbrev-commit
+        lg = log --pretty=format:'%Creset%ad %Cgreen%h%d %Creset%s'\
+           --color=auto --date=short --abbrev-commit --graph
+        ls = ls-files
+        df = diff --cached
+        pm = push origin HEAD:master
+        fa = "!find -name '$1' | xargs -n 1 git add"
+        gz = "!git archive --format=tar.gz --prefix=${PWD##*/}/ HEAD > ${PWD##*/}.tar.gz"

@@ -1,0 +1,6 @@
+Host *
+        ControlMaster auto
+        ControlPath ~/.ssh/%r@%h-%p
+        ControlPersist yes
+        Compression yes
+        IdentityFile ~/.ssh/default.key

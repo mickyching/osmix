@@ -59,6 +59,14 @@ func PathExist(p string) bool {
 	return !os.IsNotExist(err)
 }
 
+func FileSize(fname string) int64 {
+	s, err := os.Stat(fname)
+	if err != nil {
+		return 0
+	}
+	return s.Size()
+}
+
 // CreateDir create a directory
 func CreateDir(dname string) error {
 	return os.MkdirAll(dname, os.ModePerm)

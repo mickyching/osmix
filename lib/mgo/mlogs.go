@@ -14,8 +14,9 @@ import (
 
 // mutex deadlock with dirty
 type Logger struct {
-	pre string // log filename prefix, empty pre means log to stdio
-	max int64  // log file max size
+	pre  string // log filename prefix, empty pre means log to stdio
+	max  int64  // log file max size
+	sync bool   // log sync mode
 
 	fio io.ReadWriteCloser // log file handler
 	num int64              // log file size, num=-1 indicate fio not open
@@ -26,22 +27,29 @@ type Logger struct {
 	dirty chan bool // log buf is dirty
 }
 
+func (self *Logger) close() {
+	if self.fio != nil {
+		self.fio.Close()
+	}
+	self.fio = nil
+	self.num = -1
+}
+
 func (self *Logger) open() error {
 	if self.pre == "" {
 		return nil
 	}
 
-	if self.num >= 0 && self.num < self.max {
+	if self.fio != nil && self.num >= 0 && self.num < self.max {
 		return nil
 	}
 
 	if self.num > self.max {
-		self.fio.Close()
-		self.num = -1
+		self.close()
 	}
 
 	fname := fmt.Sprintf("%s-%s", self.pre, time.Now().Format("2006010215"))
-	if PathExist(fname) {
+	if PathExist(fname) && FileSize(fname) > self.max - self.num {
 		fname = fmt.Sprintf("%s-%s", self.pre, time.Now().Format("2006010215.0405"))
 		if PathExist(fname) {
 			fname = fmt.Sprintf("%s-%s", self.pre, time.Now().Format("2006010215.0405.000"))
@@ -59,34 +67,37 @@ func (self *Logger) open() error {
 	self.num = 0
 	return nil
 }
+func (self *Logger) openAndLog() {
+	if self.pre == "" {
+		panic("missing log file")
+	}
+
+	err := self.open()
+	if err != nil {
+		panic(err)
+	}
+
+	if self.num < 0 {
+		panic("fio not open")
+	}
+
+	self.mutex.Lock()
+	if len(self.buf) > 0 {
+		n, err := self.fio.Write(self.buf)
+		if err != nil {
+			panic(err)
+		}
+		self.buf = []byte{}
+		self.num += int64(n)
+	}
+	self.mutex.Unlock()
+}
 
 func (self *Logger) flush() error {
 	for {
 		select {
 		case <-self.dirty:
-			if self.pre == "" {
-				panic("missing log file")
-			}
-
-			err := self.open()
-			if err != nil {
-				panic(err)
-			}
-
-			if self.num < 0 {
-				panic("fio not open")
-			}
-
-			self.mutex.Lock()
-			if len(self.buf) > 0 {
-				n, err := self.fio.Write(self.buf)
-				if err != nil {
-					panic(err)
-				}
-				self.buf = []byte{}
-				self.num += int64(n)
-			}
-			self.mutex.Unlock()
+			self.openAndLog()
 		}
 	}
 }
@@ -100,32 +111,46 @@ func (self *Logger) Write(info string) error {
 	self.buf = append(self.buf, []byte(info)...)
 	self.mutex.Unlock()
 
-	self.dirty <- true
+	if self.sync {
+		self.openAndLog()
+		self.close()
+	} else {
+		self.dirty <- true
+	}
 	return nil
 }
 
 // NewLogger create new logger
-func NewLogger(pre string, size int64) *Logger {
+func NewLogger(sync bool, pre string, size int64) *Logger {
 	logger := &Logger{
+		sync:  sync,
 		pre:   pre,
 		max:   size,
 		num:   -1,
 		dirty: make(chan bool, SIZE_1K),
 	}
-	go logger.flush()
+
+	if !sync {
+		go logger.flush()
+	}
+
 	return logger
 }
 
 // InitLogger init global logger
-func InitLogger(pre string, size int64) {
+func InitGlogger(sync bool, pre string, size int64) {
 	once.Do(func() {
-		Glogger = NewLogger(pre, size)
+		Glogger = NewLogger(sync, pre, size)
 	})
+}
+
+func InitLogger(pre string) {
+	InitGlogger(true, pre, 100*SIZE_1M)
 }
 
 func logwrite(s string) {
 	if Glogger == nil {
-		InitLogger("", 100*SIZE_1M)
+		InitLogger("")
 	}
 
 	Glogger.Write(s + "\n")

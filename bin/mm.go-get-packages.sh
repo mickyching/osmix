@@ -4,6 +4,8 @@ echo go get github.com/rogpeppe/godef
 go get github.com/rogpeppe/godef
 echo go get github.com/nsf/gocode
 go get github.com/nsf/gocode
+echo go get github.com/tools/godep
+go get github.com/tools/godep
 
 mkdir -p $GOPATH/src/golang.org/x
 cd $GOPATH/src/golang.org/x
